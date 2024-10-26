@@ -1,8 +1,12 @@
 use dotenv::dotenv;
-use std::{env, fmt::Error, str::FromStr};
+use std::{env,  str::FromStr};
 use solana_sdk::{bs58, pubkey::Pubkey, signature::Keypair, signer::Signer};
-use teloxide::{prelude::*,  utils::command::BotCommands};
+use teloxide::{prelude::*, types::{InlineKeyboardButton, InlineKeyboardMarkup}, utils::command::BotCommands};
 use solana_client::rpc_client::RpcClient;
+use url::Url;
+use teloxide::types::InputFile;
+use qrcode::QrCode;
+use image::Luma;
   #[tokio::main]
  async fn main(){
     dotenv().ok();
@@ -20,23 +24,38 @@ use solana_client::rpc_client::RpcClient;
 
 
 }
- 
-#[derive(BotCommands, Clone)]
+
+
+
+ #[derive(BotCommands, Clone)]
 #[command(rename_rule = "lowercase", description = "These commands are supported:")]
 enum Commands{
-    Help, 
+     Help, 
+    #[command(description = "Creates a Wallet for you ")]
+
     CreateWallet,
+    #[command(description = "u check ur balance with this provide the public key .")]
+
     CheckBalance(String),
+    #[command(description = "Gives u the QrCode proviede the public key")]
+
+    Deposit(String)
 
 }
 
 async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(bot:Bot,msg:Message,cmd:Commands) -> ResponseResult<()>{
+    let url = Url::parse("https://www.youtube.com/watch?v=J87pJrxvJ5E").expect("Invalid URL");
+
+    // let keyboard = InlineKeyboardMarkup::new(vec![vec![InlineKeyboardButton::url(
+    //     "Open Phantom",
+    //     url,
+    // )]]); 
     match cmd {
         Commands::CreateWallet => {
           let (prv_key,pub_key)    = creating_a_wallet().await;
             bot.send_message(msg.chat.id, format!("This is ur Public key: {}", pub_key) ).await?;
             bot.send_message(msg.chat.id, format!("This is ur Private key :{}", prv_key) ).await?;
-
+            
 
         },
         Commands::Help => {
@@ -45,6 +64,10 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(bot:Bot,m
         },
         Commands::CheckBalance(pub_key)=>{
             checking_balance(bot,pub_key,msg).await?;
+        },
+        Commands::Deposit(key)=> {
+            send_deposit_info(bot,msg,&key).await?;
+        
         }
 
         
@@ -69,5 +92,19 @@ async fn checking_balance(bot: Bot, pub_key: String, msg: Message) -> ResponseRe
     };
 
     bot.send_message(msg.chat.id, response).await?; // Await the message sending
+    Ok(())
+}
+async fn send_deposit_info(bot: Bot, msg: Message,key:&str) -> ResponseResult<()> {
+    let wallet_address = key;
+    
+    // Generate QR code
+    let code = QrCode::new(wallet_address).unwrap();
+    let image = code.render::<Luma<u8>>().build();
+    image.save("qrcode.png").unwrap();  // Save the QR code image locally
+
+    // Send the QR code and wallet address to the user
+    bot.send_photo(msg.chat.id, InputFile::file("qrcode.png"))
+        .caption(format!("Deposit to this wallet:\n{}", wallet_address))
+        .await?;
     Ok(())
 }
