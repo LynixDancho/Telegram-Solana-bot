@@ -1,12 +1,15 @@
 use dotenv::dotenv;
 use std::{env,  str::FromStr};
-use solana_sdk::{bs58, pubkey::Pubkey, signature::Keypair, signer::Signer};
+use solana_sdk::{bs58, pubkey::{self, Pubkey}, signature::Keypair, signer::{keypair, Signer}};
 use teloxide::{prelude::*, types::{InlineKeyboardButton, InlineKeyboardMarkup}, utils::command::BotCommands};
-use solana_client::rpc_client::RpcClient;
-use url::Url;
-use teloxide::types::InputFile;
+use solana_client::{  rpc_client::RpcClient};
+ 
+use std::sync::atomic::{AtomicUsize, Ordering};  
+ use rayon::iter::{IntoParallelIterator,ParallelIterator};
+ use teloxide::types::InputFile;
 use qrcode::QrCode;
 use image::Luma;
+ 
   #[tokio::main]
  async fn main(){
     dotenv().ok();
@@ -39,17 +42,16 @@ enum Commands{
     CheckBalance(String),
     #[command(description = "Gives u the QrCode proviede the public key")]
 
-    Deposit(String)
+    Deposit(String),
+    #[command(description = "Create a Custom Wallet")]
+
+    CustomWallet(String)
+
 
 }
 
 async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(bot:Bot,msg:Message,cmd:Commands) -> ResponseResult<()>{
-    let url = Url::parse("https://www.youtube.com/watch?v=J87pJrxvJ5E").expect("Invalid URL");
-
-    // let keyboard = InlineKeyboardMarkup::new(vec![vec![InlineKeyboardButton::url(
-    //     "Open Phantom",
-    //     url,
-    // )]]); 
+    
     match cmd {
         Commands::CreateWallet => {
           let (prv_key,pub_key)    = creating_a_wallet().await;
@@ -68,6 +70,26 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(bot:Bot,m
         Commands::Deposit(key)=> {
             send_deposit_info(bot,msg,&key).await?;
         
+        },
+        Commands::CustomWallet(prefix) =>{
+            bot.send_message(msg.chat.id, format!("This will  take time  Unless you're lucky") ).await?;
+            bot.send_dice(msg.chat.id).await?;
+
+           let test = custom_wallet( prefix,bot.clone(),msg.clone()).await;
+          match test{
+            Some(wallet) =>{ 
+                let prv_key = bs58::encode(wallet.to_bytes()).into_string();
+     
+                bot.send_message(msg.chat.id, format!("This is ur Public key: {}", wallet.pubkey()) ).await?;
+                bot.send_message(msg.chat.id, format!("This is ur Private key :{}", prv_key) ).await?;
+     
+
+            } 
+            None =>{
+                bot.send_message(msg.chat.id, "no key like that my man ").await?;
+            }
+          }
+           
         }
 
         
@@ -97,14 +119,60 @@ async fn checking_balance(bot: Bot, pub_key: String, msg: Message) -> ResponseRe
 async fn send_deposit_info(bot: Bot, msg: Message,key:&str) -> ResponseResult<()> {
     let wallet_address = key;
     
-    // Generate QR code
+     
     let code = QrCode::new(wallet_address).unwrap();
     let image = code.render::<Luma<u8>>().build();
-    image.save("qrcode.png").unwrap();  // Save the QR code image locally
+    image.save("qrcode.png").unwrap();   
 
-    // Send the QR code and wallet address to the user
     bot.send_photo(msg.chat.id, InputFile::file("qrcode.png"))
         .caption(format!("Deposit to this wallet:\n{}", wallet_address))
         .await?;
     Ok(())
 }
+// alright first i need to make a function that checks the authority and legitemacy of a token Alright htey will type the address and i check that shit 
+
+async fn custom_wallet(prefix:String,bot: Bot,msg: Message) ->Option< Keypair>{
+    let start = std::time::Instant::now();
+    let attempts = AtomicUsize::new(0);
+    let max_attempts = 1_000_000;
+      for attempt  in 0..max_attempts{
+         let keypair = Keypair::new();
+        let pubkey = keypair.pubkey().to_string();
+        attempts.fetch_add(1, Ordering::Relaxed);
+        if attempt > 0 && attempt % 100_000 == 0 {
+            let progress_message = format!("Attempted {} times without a match", attempt);
+            bot.send_message(msg.chat.id, progress_message).await.ok()?;
+        }
+
+         if pubkey.starts_with(&prefix){
+            let duration = start.elapsed();
+            println!("Found matching wallet in {} attempts and {:?} seconds", attempts.load(Ordering::Relaxed), duration);
+            return Some(keypair); 
+        }
+
+        
+    }
+    println!("Failed to find matching wallet within {} attempts", max_attempts);
+    None
+    
+    
+//     let wallet = (0..max_attempts).into_par_iter().find_map_any(|_| {
+//           let keypair = Keypair::new();
+//          let pub_key = keypair.pubkey().to_string();
+
+//         attempts.fetch_add(1, Ordering::Relaxed);
+
+//         if pub_key.starts_with(&prefix) {
+//             Some(keypair)
+//         } else {
+//             None
+//         }
+//     }).expect("Failed to find matching wallet");
+
+ 
+//  wallet
+
+}
+
+
+

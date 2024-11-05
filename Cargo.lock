@@ -4769,11 +4769,14 @@ dependencies = [
  "log",
  "pretty_env_logger",
  "qrcode",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
+ "rayon",
  "solana-client",
  "solana-sdk",
  "teloxide",
  "tokio",
- "url",
 ]
 
 [[package]]
