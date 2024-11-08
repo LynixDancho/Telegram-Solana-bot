@@ -1,7 +1,7 @@
 use dotenv::dotenv;
-use std::{env, str::FromStr, sync::Arc};
+use std::{env, str::FromStr, sync::Arc, thread::sleep, time::Duration};
 use solana_sdk::{bs58, pubkey::Pubkey, signature::Keypair, signer::Signer};
-use teloxide::{prelude::*, types::InputFile, utils::command::BotCommands};
+use teloxide::{ prelude::*, types::InputFile, utils::command::BotCommands};
 use solana_client::rpc_client::RpcClient;
 use tokio::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -51,6 +51,8 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(
     cmd: Commands,
     is_running: Arc<Mutex<bool>>,
 ) -> ResponseResult<()> {
+    bot.send_message(msg.chat.id, "  /createWallet- Creates a wallet for you \n /checkBalance - Check your balance with this command, provide the public key. \n /deposit Provides a QR code for the public key
+    \n /customWallet - Create a custom wallet \n Stop  - Stop generating custom wallets").await.ok();
     match cmd {
         Commands::CreateWallet => {
             let (prv_key, pub_key) = creating_a_wallet().await;
@@ -136,9 +138,8 @@ async fn send_deposit_info(bot: Bot, msg: Message, key: &str) -> ResponseResult<
 async fn custom_wallet(prefix: String, bot: Bot, msg: Message, is_running: Arc<Mutex<bool>>) {
     let start = std::time::Instant::now();
     let attempts = AtomicUsize::new(0);
-    let max_attempts = 1_000_000;
-
-    for attempt in 0..max_attempts {
+     let mut attempt = 1;
+    loop{
         // Check if `is_running` is set to false, exit early if so
         if !*is_running.lock().await {
             bot.send_message(msg.chat.id, "Wallet generation stopped.").await.ok();
@@ -148,10 +149,13 @@ async fn custom_wallet(prefix: String, bot: Bot, msg: Message, is_running: Arc<M
         let keypair = Keypair::new();
         let pubkey = keypair.pubkey().to_string();
         attempts.fetch_add(1, Ordering::Relaxed);
+        attempt+=1;
 
         if attempt > 0 && attempt % 100_000 == 0 {
-            let progress_message = format!("Attempted {} times without a match", attempt);
+            let progress_message = format!("Attempted {attempt} times without a match");
             bot.send_message(msg.chat.id, progress_message).await.ok();
+            sleep(Duration::from_secs(2));
+            
         }
 
         if pubkey.starts_with(&prefix) {
@@ -166,3 +170,10 @@ async fn custom_wallet(prefix: String, bot: Bot, msg: Message, is_running: Arc<M
 
     println!("Finished generating wallets or stopped.");
 }
+
+// async fn Findingwallets(bot: Bot,msg: Message){
+
+
+
+
+// }
