@@ -134,15 +134,26 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(
             }
         }
         Commands::CheckToken(string)=>{
+            // match get_token_mint(&string.clone()) {
+            //     Ok((freeze_authority, mint_authority)) => {
+            //         println!("Mint Authority: {}", mint_authority);
+            //         println!("Freeze Authority: {}", freeze_authority);
+            //     }
+            //     Err(err) => {
+            //         println!("Error fetching mint details: {}", err);
+            //     }
+            // }      
             match get_token_mint(&string.clone()) {
-                Ok((freeze_authority, mint_authority)) => {
-                    println!("Mint Authority: {}", mint_authority);
-                    println!("Freeze Authority: {}", freeze_authority);
-                }
-                Err(err) => {
-                    println!("Error fetching mint details: {}", err);
-                }
-            }            
+        Ok((freeze_authority, mint_authority)) => {
+            // Send the mint and freeze authorities
+            bot.send_message(msg.chat.id, format!("Mint Authority: {}", mint_authority)).await.ok();
+            bot.send_message(msg.chat.id, format!("Freeze Authority: {}", freeze_authority)).await.ok();
+        }
+        Err(err) => {
+            // Handle the error if unable to fetch mint details
+            bot.send_message(msg.chat.id, format!("Error fetching mint details: {}", err)).await.ok();
+        }
+    }
             let token = vec![String::from(string)];
            match client.tokens(token).await {
                 Ok(response) =>{
