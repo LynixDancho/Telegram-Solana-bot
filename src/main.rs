@@ -134,15 +134,15 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(
             }
         }
         Commands::CheckToken(string)=>{
-            // match get_token_mint(&string.clone()) {
-            //     Ok((freeze_authority, mint_authority)) => {
-            //         println!("Mint Authority: {}", mint_authority);
-            //         println!("Freeze Authority: {}", freeze_authority);
-            //     }
-            //     Err(err) => {
-            //         println!("Error fetching mint details: {}", err);
-            //     }
-            // }            
+            match get_token_mint(&string.clone()) {
+                Ok((freeze_authority, mint_authority)) => {
+                    println!("Mint Authority: {}", mint_authority);
+                    println!("Freeze Authority: {}", freeze_authority);
+                }
+                Err(err) => {
+                    println!("Error fetching mint details: {}", err);
+                }
+            }            
             let token = vec![String::from(string)];
            match client.tokens(token).await {
                 Ok(response) =>{
