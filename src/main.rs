@@ -7,7 +7,9 @@ use tokio::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use qrcode::QrCode;
 use image::Luma;
-
+use teloxide::types::{KeyboardButton,KeyboardMarkup   };
+use dexscreener;
+ 
 #[tokio::main]
 async fn main() {
     dotenv().ok();
@@ -18,15 +20,33 @@ async fn main() {
 
     log::info!("Starting the bot");
     let bot = Bot::from_env();
+    let clientt: dexscreener::Client = dexscreener::Client::new();
     let is_running = Arc::new(Mutex::new(false));
 
-    Commands::repl(bot, move |bot, msg, cmd| {
+    Commands::repl(bot.clone(), move |bot:Bot, msg: Message, cmd: Commands| {
+        let client = clientt.clone();
         let is_running = Arc::clone(&is_running);
         async move {
-            commandsto_create_asolana_wallet_callit_asolana_project_hahah(bot, msg, cmd, is_running).await
+            let keyboard = KeyboardMarkup::new(vec![
+                vec![
+                    KeyboardButton::new("/help"),
+                    KeyboardButton::new("/createwallet"),
+                
+                ],
+            ])
+            .resize_keyboard();
+    
+            bot.send_message(msg.chat.id, "."  )
+                .reply_markup(keyboard)
+                .disable_notification(true)
+                .await?;
+            
+             commandsto_create_asolana_wallet_callit_asolana_project_hahah(bot, msg, cmd, is_running,client).await
         }
     })
     .await;
+ 
+
 }
 
 #[derive(BotCommands, Clone)]
@@ -41,18 +61,33 @@ enum Commands {
     Deposit(String),
     #[command(description = "Create a custom wallet")]
     CustomWallet(String),
+    #[command(description = "Check the token worth ")]
+    CheckToken(String),
     #[command(description = "Stop generating custom wallets")]
     Stop,
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(
     bot: Bot,
     msg: Message,
     cmd: Commands,
     is_running: Arc<Mutex<bool>>,
+    client:dexscreener::Client
 ) -> ResponseResult<()> {
-    bot.send_message(msg.chat.id, "  /createWallet- Creates a wallet for you \n /checkBalance - Check your balance with this command, provide the public key. \n /deposit Provides a QR code for the public key
-    \n /customWallet - Create a custom wallet \n Stop  - Stop generating custom wallets").await.ok();
+    
     match cmd {
         Commands::CreateWallet => {
             let (prv_key, pub_key) = creating_a_wallet().await;
@@ -60,7 +95,7 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(
             bot.send_message(msg.chat.id, format!("This is your private key: {}", prv_key)).await?;
         }
         Commands::Help => {
-            bot.send_message(msg.chat.id, Commands::descriptions().to_string()).await?;
+             bot.send_message(msg.chat.id, Commands::descriptions().to_string()).await?;
         }
         Commands::CheckBalance(pub_key) => {
             checking_balance(bot, pub_key, msg).await?;
@@ -69,7 +104,7 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(
             send_deposit_info(bot, msg, &key).await?;
         }
         Commands::CustomWallet(prefix) => {
-            let mut running = is_running.lock().await;
+             let mut running = is_running.lock().await;
             if !*running {
                 *running = true;
                 drop(running); // Release the lock
@@ -88,19 +123,66 @@ async fn commandsto_create_asolana_wallet_callit_asolana_project_hahah(
             } else {
                 bot.send_message(msg.chat.id, "Wallet generation is already in progress.").await?;
             }
-        }
+         }
         Commands::Stop => {
             let mut running = is_running.lock().await;
             if *running {
-                *running = false; // Stop the wallet generation
+                *running = false; 
                 bot.send_message(msg.chat.id, "Wallet generation has been stopped.").await?;
             } else {
                 bot.send_message(msg.chat.id, "No wallet generation in progress.").await?;
             }
         }
+        Commands::CheckToken(string)=>{
+            // match get_token_mint(&string.clone()) {
+            //     Ok((freeze_authority, mint_authority)) => {
+            //         println!("Mint Authority: {}", mint_authority);
+            //         println!("Freeze Authority: {}", freeze_authority);
+            //     }
+            //     Err(err) => {
+            //         println!("Error fetching mint details: {}", err);
+            //     }
+            // }            
+            let token = vec![String::from(string)];
+           match client.tokens(token).await {
+                Ok(response) =>{
+                    if let Some(pairs) = response.pairs {
+                        for pair in pairs {
+                             
+                           bot.send_message(msg.chat.id,format!("Token Bought in  1 hour : {:?}", pair.txns.h1.buys )).await.ok() ;
+                           bot.send_message(msg.chat.id,format!("Token Sold in  1 hour : {:?}", pair.txns.h1.sells )).await.ok() ; 
+ 
+                           bot.send_message(msg.chat.id,format!("Token Bought in  5 minutes :   {:?}", pair.txns.m5.buys )).await.ok() ; 
+                            bot.send_message(msg.chat.id,format!("Token Sold in  5 minutes :  {:?}", pair.txns.m5.sells )).await.ok() ; 
+
+                           bot.send_message(msg.chat.id, format!(
+                            "Liquidity: USD: {:.2}, Base: {:.2}, Quote: {:.4}", 
+                            pair.liquidity.clone().unwrap().usd, 
+                            pair.liquidity.clone().unwrap().base,
+                            pair.liquidity.clone().unwrap().quote,
+                            
+                          )).await.ok();                           bot.send_message(msg.chat.id,format!("Last Price: {:?}", pair.price_usd.unwrap()) ).await.ok() ;  
+
+                       
+                        }
+                    } else {
+                        bot.send_message(msg.chat.id,"No pairs found for this token.").await.ok();
+                    }
+
+
+                }
+                Err(error) =>{
+                    bot.send_message(msg.chat.id, format!("Error Has Occured make sure u have the right token {}",error)).await?;
+                }
+
+
+
+        }
+        }
     }
     Ok(())
 }
+ 
 
 async fn creating_a_wallet() -> (String, String) {
     let key = Keypair::new();
@@ -110,7 +192,7 @@ async fn creating_a_wallet() -> (String, String) {
 }
 
 async fn checking_balance(bot: Bot, pub_key: String, msg: Message) -> ResponseResult<()> {
-    let client: RpcClient = RpcClient::new("https://api.devnet.solana.com");
+    let client: RpcClient = RpcClient::new("https://api.mainnet-beta.solana.com");
     let pubkey = Pubkey::from_str(&pub_key).expect("Invalid public key");
 
     let response = match client.get_balance(&pubkey) {
@@ -136,7 +218,7 @@ async fn send_deposit_info(bot: Bot, msg: Message, key: &str) -> ResponseResult<
 }
 
 async fn custom_wallet(prefix: String, bot: Bot, msg: Message, is_running: Arc<Mutex<bool>>) {
-    let start = std::time::Instant::now();
+     let start = std::time::Instant::now();
     let attempts = AtomicUsize::new(0);
      let mut attempt = 1;
     loop{
@@ -146,7 +228,7 @@ async fn custom_wallet(prefix: String, bot: Bot, msg: Message, is_running: Arc<M
             break;
         }
 
-        let keypair = Keypair::new();
+        let keypair = Box::new(Keypair::new());
         let pubkey = keypair.pubkey().to_string();
         attempts.fetch_add(1, Ordering::Relaxed);
         attempt+=1;
@@ -154,7 +236,7 @@ async fn custom_wallet(prefix: String, bot: Bot, msg: Message, is_running: Arc<M
         if attempt > 0 && attempt % 100_000 == 0 {
             let progress_message = format!("Attempted {attempt} times without a match");
             bot.send_message(msg.chat.id, progress_message).await.ok();
-            sleep(Duration::from_secs(2));
+            tokio::time::sleep(Duration::from_secs(2)).await;
             
         }
 
@@ -168,12 +250,37 @@ async fn custom_wallet(prefix: String, bot: Bot, msg: Message, is_running: Arc<M
         }
     }
 
-    println!("Finished generating wallets or stopped.");
+ }
+
+fn get_token_mint(mint_address: &str) -> Result<(Pubkey,Pubkey), Box<dyn std::error::Error>> {
+        let rpc_client = RpcClient::new("https://api.mainnet-beta.solana.com");
+
+        let mint_pubkey = Pubkey::from_str(mint_address)?;
+   
+        let account_info = rpc_client.get_account(&mint_pubkey)?;
+   
+        if account_info.data.len() < 82 {
+           return Err("Account data is not valid for a token mint".into());
+       }
+   
+        let mint_authority_bytes = &account_info.data[4..36];
+       let mint_authority = Pubkey::new_from_array(mint_authority_bytes.try_into()?);
+   
+        let freeze_authority_bytes = &account_info.data[68..100];
+       let freeze_authority = Pubkey::new_from_array(freeze_authority_bytes.try_into()?);
+   
+        println!("Mint Authority: {}", mint_authority);
+       println!("Freeze Authority: {}", freeze_authority);
+   
+       Ok((freeze_authority,mint_authority))
 }
 
-// async fn Findingwallets(bot: Bot,msg: Message){
 
 
 
 
-// }
+
+
+
+
+ 
